@@ -20,60 +20,12 @@ open Core_kernel
 open! Int.Replace_polymorphic_compare
 open Printf
 open Scilla_base
-open ParserUtil
 open TypeUtil
-open RecursionPrinciples
 open RunnerUtil
 open DebugMessage
-open MonadUtil
-open Result.Let_syntax
-open PatternChecker
 open PrettyPrinters
-open GasUseAnalysis
-open TypeInfo
 open ErrorUtils
-module PSRep = ParserRep
-module PERep = ParserRep
-module Parser = ScillaParser.Make (ParserSyntax)
-module TC = TypeChecker.ScillaTypechecker (PSRep) (PERep)
-module TCSRep = TC.OutputSRep
-module TCERep = TC.OutputERep
-module PM_Checker = ScillaPatternchecker (TCSRep) (TCERep)
-module TI = ScillaTypeInfo (TCSRep) (TCERep)
-module GUA_Checker = ScillaGUA (TCSRep) (TCERep)
-
-(* Check that the expression parses *)
-let check_parsing filename =
-  match FrontEndParser.parse_file Parser.Incremental.exp_term filename with
-  | Error _ -> fail0 (sprintf "Failed to parse input file %s\n." filename)
-  | Ok e ->
-      plog
-      @@ sprintf "\n[Parsing]:\nExpression in [%s] is successfully parsed.\n"
-           filename;
-      pure e
-
-(* Type check the expression with external libraries *)
-let check_typing e elibs gas =
-  let open TC in
-  let open TC.TypeEnv in
-  let rec_lib =
-    {
-      ParserSyntax.lname = TCIdentifier.mk_loc_id "rec_lib";
-      ParserSyntax.lentries = recursion_principles;
-    }
-  in
-  let tenv0 = TEnv.mk () in
-  let%bind _typed_rec_libs, remaining_gas = type_library tenv0 rec_lib gas in
-  (* Step 1: Type check external libraries *)
-  let%bind _, remaining_gas = type_libraries elibs tenv0 remaining_gas in
-  let%bind typed_e, remaining_gas =
-    type_expr e tenv0 init_gas_kont remaining_gas
-  in
-  pure @@ (typed_e, remaining_gas)
-
-let check_patterns e = PM_Checker.pm_check_expr e
-
-let analyze_gas e = GUA_Checker.gua_expr_wrapper e
+open TypeCheckerUtil
 
 let run () =
   GlobalConfig.reset ();
